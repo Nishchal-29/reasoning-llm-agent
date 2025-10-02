@@ -5,11 +5,6 @@ from typing import List, Dict, Any, Optional, Tuple
 import os
 
 def format_few_shot_examples(examples: List[Dict[str, Any]]) -> str:
-    """
-    Formats the few-shot examples into a string for the prompt.
-    Defensive: supports examples that use keys 'question' or 'problem' and
-    gracefully falls back when 'plan' is missing.
-    """
     formatted_str = ""
     for example in examples:
         q = example.get('question') or example.get('problem') or example.get('prompt') \
@@ -48,14 +43,6 @@ def format_few_shot_examples(examples: List[Dict[str, Any]]) -> str:
 
 
 def create_planner_prompt(question: str, prompt_template_path: str, few_shot_path: str, max_examples: Optional[int] = None) -> str:
-    """
-    Create the final prompt in a safe way (avoid str.format with unescaped braces).
-    The prompt template should include the literal substrings:
-      {few_shot_examples}
-      {question}
-    which will be replaced via str.replace (safe for JSON content).
-    """
-    # Load template text
     with open(prompt_template_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
 
@@ -89,7 +76,6 @@ class PlannerLLM:
         self.tokenizer = None
 
     def load_model(self):
-        """Lazily import and load the tokenizer & model. Call this when ready to use GPU/CPU."""
         from transformers import T5ForConditionalGeneration, T5TokenizerFast
         import torch
 
@@ -98,7 +84,6 @@ class PlannerLLM:
         self.model.to(self.device)
 
     def generate(self, prompt: str, max_length: int = 512, num_return_sequences: int = 5, temperature: float = 0.7, top_p: float = 0.9) -> List[Dict[str, Any]]:
-        """Generate candidate outputs for the provided prompt."""
         if self.model is None or self.tokenizer is None:
             raise RuntimeError('Model not loaded. Call load_model() first.')
 
@@ -119,7 +104,6 @@ class PlannerLLM:
         return results
 
     def _extract_json_from_text(self, s: str) -> Optional[Any]:
-        """Try extracting a JSON object or array from model output."""
         s = s.strip()
         first = None
         for i, ch in enumerate(s):

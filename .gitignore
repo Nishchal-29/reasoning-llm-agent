@@ -6,5 +6,9 @@ dist/
 wheels/
 *.egg-info
 
+.python-version
+uv.lock
+outputs/
+
 # Virtual environments
 .venv

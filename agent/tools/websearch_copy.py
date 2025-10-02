@@ -235,7 +235,6 @@ class WebSearchExecutorSimple:
             language="en"
         )
 
-    # ----------------- Page Scraper -----------------
     def scrape_page(self, url: str) -> str | None:
         try:
             res = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
@@ -246,7 +245,6 @@ class WebSearchExecutorSimple:
         except Exception:
             return None
 
-    # ----------------- DuckDuckGo Search -----------------
     def search_duckduckgo(self, query: str, max_results: int = 5) -> list:
         results = []
         try:
@@ -261,27 +259,22 @@ class WebSearchExecutorSimple:
             results.append({"error": str(e)})
         return results
 
-    # ----------------- Wikipedia Search -----------------
     def search_wikipedia(self, query: str) -> list:
         results = []
         page = self.wiki.page(query)
         if page.exists():
             results.append({
                 "title": page.title,
-                "text": page.summary[:1000],  # Limit summary length
+                "text": page.summary[:1000], 
                 "url": f"https://en.wikipedia.org/wiki/{page.title.replace(' ', '_')}"
             })
         return results
 
-    # ----------------- Execute Search Pipeline -----------------
     def execute(self, query: str) -> dict:
         response = {"query": query, "results": []}
-
-        # Wikipedia results first
         wiki_results = self.search_wikipedia(query)
         response["results"].extend(wiki_results)
 
-        # DuckDuckGo results
         ddg_results = self.search_duckduckgo(query)
         for r in ddg_results:
             result_item = {
@@ -292,7 +285,7 @@ class WebSearchExecutorSimple:
             if r.get("url"):
                 page_text = self.scrape_page(r["url"])
                 if page_text:
-                    result_item["text"] = page_text[:1000]  # Limit preview
+                    result_item["text"] = page_text[:1000] 
             response["results"].append(result_item)
 
         if not response["results"]:
@@ -300,13 +293,9 @@ class WebSearchExecutorSimple:
 
         return response
 
-
-# ----------------- Example Usage -----------------
 if __name__ == "__main__":
     web = WebSearchExecutorSimple()
-    query = "coffee recipe"
-
+    query = "dynamic programming"
     result_json = web.execute(query)
-
     import json
     print(json.dumps(result_json, indent=4))

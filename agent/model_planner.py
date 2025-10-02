@@ -3,67 +3,15 @@ import json
 import re
 from typing import List, Dict, Any, Optional, Tuple
 import os
+from transformers import T5ForConditionalGeneration, T5TokenizerFast
+import torch
 
-def format_few_shot_examples(examples: List[Dict[str, Any]]) -> str:
-    formatted_str = ""
-    for example in examples:
-        q = example.get('question') or example.get('problem') or example.get('prompt') \
-            or example.get('problem_statement') or '<MISSING_QUESTION>'
-        formatted_str += f"Problem: {q}\n"
-
-        plan = example.get('plan')
-        if plan is None:
-            # Fall back: if only an answer is provided, fake a one-step plan
-            ans = example.get('answer')
-            if ans is not None:
-                # jsonify the answer properly
-                try:
-                    ans_json = json.dumps(ans, ensure_ascii=False)
-                except Exception:
-                    ans_json = str(ans)
-                plan = [f"Return {ans_json}"]
-            else:
-                plan = ["<no plan available>"]
-
-        # Normalize to list
-        if not isinstance(plan, list):
-            plan = [plan]
-
-        # If plan items are dicts -> pretty JSON, else join strings
-        if all(isinstance(p, dict) for p in plan):
-            plan_str = json.dumps(plan, ensure_ascii=False, indent=2)
-            plan_str = '\n'.join('  ' + line for line in plan_str.splitlines())
-            formatted_str += "Plan:\n" + plan_str + "\n---\n"
-        else:
-            # join plan items (string steps)
-            plan_str = "\n".join(str(p) for p in plan)
-            formatted_str += "Plan:\n" + plan_str + "\n---\n"
-
-    return formatted_str
-
-
-def create_planner_prompt(question: str, prompt_template_path: str, few_shot_path: str, max_examples: Optional[int] = None) -> str:
+def create_planner_prompt(question: str, prompt_template_path: str) -> str:
     with open(prompt_template_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
-
-    # Load few-shot examples (must be a JSON list)
-    with open(few_shot_path, 'r', encoding='utf-8') as f:
-        few_shot_examples = json.load(f)
-
-    if not isinstance(few_shot_examples, list):
-        raise ValueError('Few-shot file must contain a JSON list of examples.')
-
-    if max_examples is not None:
-        few_shot_examples = few_shot_examples[:max_examples]
-
-    formatted_examples = format_few_shot_examples(few_shot_examples)
-
-    # IMPORTANT: use replace instead of format to avoid KeyError from braces in JSON
-    final_prompt = prompt_template.replace("{few_shot_examples}", formatted_examples)
-    final_prompt = final_prompt.replace("{question}", question)
+    final_prompt = prompt_template.replace("{question}", question)
 
     return final_prompt
-
 
 # Lightweight LLM planner wrapper (imports transformers lazily so module import is cheap)
 class PlannerLLM:
@@ -76,30 +24,49 @@ class PlannerLLM:
         self.tokenizer = None
 
     def load_model(self):
-        from transformers import T5ForConditionalGeneration, T5TokenizerFast
-        import torch
-
         self.tokenizer = T5TokenizerFast.from_pretrained(self.model_name, cache_dir=self.cache_dir)
         self.model = T5ForConditionalGeneration.from_pretrained(self.model_name, cache_dir=self.cache_dir)
         self.model.to(self.device)
 
-    def generate(self, prompt: str, max_length: int = 512, num_return_sequences: int = 5, temperature: float = 0.7, top_p: float = 0.9) -> List[Dict[str, Any]]:
+    def generate(self, prompt: str,
+        max_new_tokens: int = 256,
+        num_return_sequences: int = 3,
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        num_beams: int = 4,
+        repetition_penalty: float = 1.2,
+        early_stopping: bool = True) -> List[Dict[str, Any]]:
         if self.model is None or self.tokenizer is None:
             raise RuntimeError('Model not loaded. Call load_model() first.')
 
+        # Use tokenizer to prepare inputs
         inputs = self.tokenizer(prompt, return_tensors='pt', truncation=True, max_length=1024).to(self.device)
+
+        # If using beam search, num_return_sequences must be <= num_beams
+        num_return_sequences = min(num_return_sequences, num_beams)
+
         gen_kwargs = dict(
-            do_sample=True,
-            temperature=temperature,
-            top_p=top_p,
+            max_new_tokens=max_new_tokens,
+            num_beams=num_beams,
             num_return_sequences=num_return_sequences,
-            max_length=max_length,
+            do_sample=False,              # greedy / beam search, not sampling
+            repetition_penalty=repetition_penalty,
+            early_stopping=early_stopping,
+            return_dict_in_generate=True,
+            output_scores=False
         )
+
         outputs = self.model.generate(**inputs, **gen_kwargs)
+
         results = []
-        for out in outputs:
-            text = self.tokenizer.decode(out, skip_special_tokens=True)
+        for i in range(len(outputs.sequences)):
+            text = self.tokenizer.decode(outputs.sequences[i], skip_special_tokens=True)
+            # Post-process: try to extract the first valid JSON array/object
             parsed = self._extract_json_from_text(text)
+            # If parsed is None, attempt repair heuristics
+            if parsed is None:
+                repaired = self._repair_and_extract(text)
+                parsed = repaired
             results.append({'raw': text, 'parsed': parsed})
         return results
 
@@ -131,6 +98,80 @@ class PlannerLLM:
                         except Exception:
                             return None
         return None
+    
+    def _repair_and_extract(self, s: str) -> Optional[Any]:
+        s = s.strip()
+        # find first '['
+        idx = s.find('[')
+        if idx == -1:
+            # maybe model started with '{' (single object). try to extract {...}
+            idx_obj = s.find('{')
+            if idx_obj != -1:
+                # attempt to extract balanced {...}
+                parsed = self._try_extract_braced(s, '{', '}')
+                if parsed is not None:
+                    return parsed
+                # otherwise wrap the content in [ ... ] and try parse
+                candidate = '[' + s + ']'
+                try:
+                    return json.loads(candidate)
+                except Exception:
+                    return None
+            return None
+
+        # find matching bracket by counting
+        stack = 0
+        end = None
+        for i in range(idx, len(s)):
+            if s[i] == '[':
+                stack += 1
+            elif s[i] == ']':
+                stack -= 1
+                if stack == 0:
+                    end = i
+                    break
+        if end is None:
+            # append ']' and try
+            candidate = s[idx:] + ']'
+        else:
+            candidate = s[idx:end+1]
+        # sanitize common single-quote usage
+        cand2 = candidate
+        try:
+            return json.loads(cand2)
+        except Exception:
+            try:
+                cand3 = cand2.replace("'", '"')
+                return json.loads(cand3)
+            except Exception:
+                return None
+
+    def _try_extract_braced(self, s: str, open_ch: str, close_ch: str) -> Optional[Any]:
+        """Find a balanced {...} substring and try json.loads with repairs."""
+        start = s.find(open_ch)
+        if start == -1:
+            return None
+        stack = 0
+        end = None
+        for i in range(start, len(s)):
+            if s[i] == open_ch:
+                stack += 1
+            elif s[i] == close_ch:
+                stack -= 1
+                if stack == 0:
+                    end = i
+                    break
+        if end is None:
+            return None
+        candidate = s[start:end+1]
+        try:
+            return json.loads(candidate)
+        except Exception:
+            try:
+                return json.loads(candidate.replace("'", '"'))
+            except Exception:
+                return None
+
 
     def close(self):
         if self.model is not None:

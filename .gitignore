@@ -9,6 +9,7 @@ wheels/
 .python-version
 uv.lock
 outputs/
+reasoning-llm-agent.egg-info/
 
 # Virtual environments
 .venv

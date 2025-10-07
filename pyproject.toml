@@ -23,6 +23,7 @@ dependencies = [
     "huggingface-hub>=0.35.3",
     "llama-stack>=0.2.11",
     "protobuf>=6.32.1",
+    "bitsandbytes>=0.48.1",
 ]
 
 [tool.setuptools.packages.find]

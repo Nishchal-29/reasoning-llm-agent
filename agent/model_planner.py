@@ -13,11 +13,9 @@ def create_planner_prompt(question: str, prompt_template_path: str) -> str:
 
     return final_prompt
 
-# Lightweight LLM planner wrapper (imports transformers lazily so module import is cheap)
 class PlannerLLM:
     def __init__(self, model_name: str = 'google/flan-t5-small', device: Optional[str] = None, cache_dir: Optional[str] = None):
         self.model_name = model_name
-        # detect device simply — allow user override
         self.device = device or ('cuda' if (os.environ.get('CUDA_VISIBLE_DEVICES') or False) else 'cpu')
         self.cache_dir = cache_dir
         self.model = None
@@ -39,17 +37,14 @@ class PlannerLLM:
         if self.model is None or self.tokenizer is None:
             raise RuntimeError('Model not loaded. Call load_model() first.')
 
-        # Use tokenizer to prepare inputs
         inputs = self.tokenizer(prompt, return_tensors='pt', truncation=True, max_length=1024).to(self.device)
-
-        # If using beam search, num_return_sequences must be <= num_beams
         num_return_sequences = min(num_return_sequences, num_beams)
 
         gen_kwargs = dict(
             max_new_tokens=max_new_tokens,
             num_beams=num_beams,
             num_return_sequences=num_return_sequences,
-            do_sample=False,              # greedy / beam search, not sampling
+            do_sample=False,            
             repetition_penalty=repetition_penalty,
             early_stopping=early_stopping,
             return_dict_in_generate=True,
@@ -61,9 +56,7 @@ class PlannerLLM:
         results = []
         for i in range(len(outputs.sequences)):
             text = self.tokenizer.decode(outputs.sequences[i], skip_special_tokens=True)
-            # Post-process: try to extract the first valid JSON array/object
             parsed = self._extract_json_from_text(text)
-            # If parsed is None, attempt repair heuristics
             if parsed is None:
                 repaired = self._repair_and_extract(text)
                 parsed = repaired
@@ -101,17 +94,13 @@ class PlannerLLM:
     
     def _repair_and_extract(self, s: str) -> Optional[Any]:
         s = s.strip()
-        # find first '['
         idx = s.find('[')
         if idx == -1:
-            # maybe model started with '{' (single object). try to extract {...}
             idx_obj = s.find('{')
             if idx_obj != -1:
-                # attempt to extract balanced {...}
                 parsed = self._try_extract_braced(s, '{', '}')
                 if parsed is not None:
                     return parsed
-                # otherwise wrap the content in [ ... ] and try parse
                 candidate = '[' + s + ']'
                 try:
                     return json.loads(candidate)
@@ -119,7 +108,6 @@ class PlannerLLM:
                     return None
             return None
 
-        # find matching bracket by counting
         stack = 0
         end = None
         for i in range(idx, len(s)):
@@ -131,11 +119,9 @@ class PlannerLLM:
                     end = i
                     break
         if end is None:
-            # append ']' and try
             candidate = s[idx:] + ']'
         else:
             candidate = s[idx:end+1]
-        # sanitize common single-quote usage
         cand2 = candidate
         try:
             return json.loads(cand2)

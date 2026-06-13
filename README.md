@@ -98,6 +98,9 @@ reasoning-llm-agent/
 └── app/
     ├── api.py                       # Flask REST API server
     ├──templates/                    # HTML templates for UI
+├── Dockerfile
+├── test_api.sh                      # to test Flask REST API
+└── requirements.txt
 ```
 
 ---
@@ -395,5 +398,7 @@ curl -X POST http://localhost:5000/api/query \
         "query": "Calculate the volume of a sphere with radius 4.5 using python."
       }'
 ```
+
+Or can use test_api.sh to test all the Flask REST APIs
 
 ---

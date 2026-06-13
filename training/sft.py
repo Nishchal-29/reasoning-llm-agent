@@ -7,7 +7,6 @@ from typing import Dict, List, Optional
 from unsloth import FastLanguageModel
 from trl import SFTTrainer, SFTConfig
 from unsloth import train_on_responses_only
-import argparse
 
 _hf_datasets = importlib.import_module("datasets")
 Dataset = _hf_datasets.Dataset
@@ -155,10 +154,4 @@ def train(model_name: str = MODEL_NAME, output_dir: str = OUTPUT_DIR, max_sample
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
-    parser = argparse.ArgumentParser(description="Stage 1: Reasoning SFT on GSM8K")
-    parser.add_argument("--model", default=MODEL_NAME, help="Base model name or path")
-    parser.add_argument("--output-dir", default=OUTPUT_DIR, help="Output directory")
-    parser.add_argument("--max-samples", type=int, default=None, help="Limit training samples")
-    parser.add_argument("--merge-16bit", action="store_true", help="Merge LoRA and save 16-bit")
-    args = parser.parse_args()
-    train(model_name=args.model, output_dir=args.output_dir, max_samples=args.max_samples, merge_and_save_16bit=args.merge_16bit)
+    train(model_name=MODEL_NAME, output_dir=OUTPUT_DIR, max_samples=None, merge_and_save_16bit=False)

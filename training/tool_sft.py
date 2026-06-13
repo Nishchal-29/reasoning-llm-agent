@@ -3,7 +3,6 @@ import importlib
 import logging
 import os
 from typing import Dict, List, Optional
-import argparse
 import sys
 from pathlib import Path
 from unsloth import FastLanguageModel, train_on_responses_only
@@ -153,17 +152,4 @@ def train(model_name: str = MODEL_NAME, reasoning_adapter_path: Optional[str] = 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
-    parser = argparse.ArgumentParser(description="Combined Curriculum SFT")
-    parser.add_argument("--model", default=MODEL_NAME, help="Base model name")
-    parser.add_argument("--reasoning-adapter", default=REASONING_ADAPTER_PATH,
-                        help="Path to Stage 1 reasoning adapter")
-    parser.add_argument("--trajectory-dir", default=TRAJECTORY_DIR,
-                        help="Directory with trajectory JSONL files")
-    parser.add_argument("--output-dir", default=OUTPUT_DIR, help="Output directory")
-    parser.add_argument("--no-reasoning", action="store_true",
-                        help="Exclude GSM8K reasoning data")
-    parser.add_argument("--max-reasoning", type=int, default=None,
-                        help="Limit reasoning samples")
-    args = parser.parse_args()
-
-    train(model_name=args.model, reasoning_adapter_path=args.reasoning_adapter, trajectory_dir=args.trajectory_dir, output_dir=args.output_dir, include_reasoning=not args.no_reasoning, max_reasoning_samples=args.max_reasoning)
+    train(model_name=MODEL_NAME, reasoning_adapter_path=REASONING_ADAPTER_PATH, trajectory_dir=TRAJECTORY_DIR, output_dir=OUTPUT_DIR, include_reasoning=True, max_reasoning_samples=None)

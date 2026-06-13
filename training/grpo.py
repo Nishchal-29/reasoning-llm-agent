@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import random
 import importlib
-import argparse
+
 from peft import PeftModel
 from unsloth import FastLanguageModel
 from trl import GRPOConfig, GRPOTrainer
@@ -365,6 +365,7 @@ def _extract_questions_from_trajectories(trajectory_dir: str, filenames: List[st
     return questions
 
 def train(model_name: str = MODEL_NAME, sft_adapter_path: Optional[str] = SFT_ADAPTER_PATH, trajectory_dir: str = TRAJECTORY_DIR, output_dir: str = OUTPUT_DIR, max_samples: Optional[int] = None) -> None:
+    
     if sft_adapter_path and os.path.exists(sft_adapter_path):
         logger.info("Loading SFT adapter directly for GRPO: '%s'", sft_adapter_path)
         model, tokenizer = FastLanguageModel.from_pretrained(
@@ -436,12 +437,4 @@ def train(model_name: str = MODEL_NAME, sft_adapter_path: Optional[str] = SFT_AD
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
-    parser = argparse.ArgumentParser(description="GRPO RL with execution-aligned rewards")
-    parser.add_argument("--model", default=MODEL_NAME, help="Base model name")
-    parser.add_argument("--sft-adapter", default=SFT_ADAPTER_PATH, help="SFT adapter path")
-    parser.add_argument("--trajectory-dir", default=TRAJECTORY_DIR, help="Trajectory directory")
-    parser.add_argument("--output-dir", default=OUTPUT_DIR, help="Output directory")
-    parser.add_argument("--max-samples", type=int, default=None, help="Limit training samples")
-    args = parser.parse_args()
-
-    train(model_name=args.model, sft_adapter_path=args.sft_adapter, trajectory_dir=args.trajectory_dir, output_dir=args.output_dir, max_samples=args.max_samples)
+    train(model_name=MODEL_NAME, sft_adapter_path=SFT_ADAPTER_PATH, trajectory_dir=TRAJECTORY_DIR, output_dir=OUTPUT_DIR, max_samples=None)

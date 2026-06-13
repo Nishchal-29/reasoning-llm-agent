@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.git/
+.ipynb_checkpoints/
+unsloth_compiled_cache/
+# Keep the outputs folder (your LoRAs) but ignore heavy mid-training checkpoints
+outputs/checkpoint-*

@@ -1,15 +1,51 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
-*.egg-info
-
-.python-version
-uv.lock
-outputs/
-reasoning-llm-agent.egg-info/
+*.egg-info/
+.eggs/
 
 # Virtual environments
-.venv
+.venv/
+venv/
+env/
+
+# Package manager
+.python-version
+uv.lock
+pip-log.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Training outputs
+outputs/
+checkpoints/
+wandb/
+runs/
+
+# Datasets (generated)
+datasets/tool_trajectories/*.jsonl
+datasets/gsm8k/*.json
+datasets/gsm8k/*.jsonl
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Egg info (legacy)
+reasoning-llm-agent.egg-info/
+unsloth_compiled_cache/

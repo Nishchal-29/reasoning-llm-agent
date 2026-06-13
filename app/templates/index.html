@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reasoning Agent</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --chat-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --user-msg: #334155;
+            --agent-msg: #0f172a;
+            --tool-bg: #020617;
+            --border: #334155;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background-color: var(--chat-bg);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #status-indicator {
+            font-size: 0.875rem;
+            color: #10b981; /* Emerald green for OK */
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            height: 8px;
+            width: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        #chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            padding: 1rem 1.5rem;
+            border-radius: 0.75rem;
+            line-height: 1.5;
+        }
+
+        .message.user {
+            background-color: var(--user-msg);
+            align-self: flex-end;
+            border-bottom-right-radius: 0;
+        }
+
+        .message.agent {
+            background-color: var(--agent-msg);
+            border: 1px solid var(--border);
+            align-self: flex-start;
+            border-bottom-left-radius: 0;
+            width: 100%;
+        }
+
+        /* Agent Output Formatting */
+        .think-block {
+            color: var(--text-muted);
+            font-style: italic;
+            border-left: 3px solid var(--text-muted);
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .tool-block {
+            background-color: var(--tool-bg);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            font-family: "Fira Code", monospace;
+            font-size: 0.9rem;
+        }
+
+        .tool-header {
+            color: #eab308; /* Yellow */
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .tool-result {
+            color: #10b981; /* Green */
+            margin-top: 0.5rem;
+            border-top: 1px dashed var(--border);
+            padding-top: 0.5rem;
+        }
+
+        .final-answer {
+            font-weight: 500;
+            margin-top: 0.5rem;
+        }
+
+        /* Input Area */
+        #input-container {
+            background-color: var(--chat-bg);
+            padding: 1.5rem 2rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .input-wrapper {
+            max-width: 900px;
+            width: 100%;
+            display: flex;
+            gap: 1rem;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent);
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button:disabled {
+            background-color: var(--border);
+            cursor: not-allowed;
+            color: var(--text-muted);
+        }
+
+        .loading {
+            align-self: flex-start;
+            color: var(--text-muted);
+            font-style: italic;
+            display: none;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2>Qwen Agent Lab</h2>
+        <div id="status-indicator">
+            <span class="status-dot" id="dot"></span>
+            <span id="status-text">Checking API...</span>
+        </div>
+    </header>
+
+    <div id="chat-container">
+        <div class="message agent">
+            <div class="final-answer">Hello! I am your locally hosted reasoning agent. I have access to tools like the Calculator and SymPy. What would you like to solve today?</div>
+        </div>
+    </div>
+
+    <div class="loading" id="loading-indicator">Agent is thinking and executing tools...</div>
+
+    <div id="input-container">
+        <div class="input-wrapper">
+            <input type="text" id="prompt-input" placeholder="e.g., What is the 100th prime number? Use python." onkeypress="handleKeyPress(event)">
+            <button id="send-btn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "/api";
+        const chatContainer = document.getElementById('chat-container');
+        const inputField = document.getElementById('prompt-input');
+        const sendBtn = document.getElementById('send-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const statusText = document.getElementById('status-text');
+        const dot = document.getElementById('dot');
+
+        // Check API health on load
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    statusText.innerText = `API Online (${data.data.model_loaded ? 'Model Loaded' : 'Loading Model...'})`;
+                    dot.style.backgroundColor = '#10b981';
+                }
+            } catch (e) {
+                statusText.innerText = 'API Offline';
+                dot.style.backgroundColor = '#ef4444'; // Red
+            }
+        }
+        checkHealth();
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function appendUserMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message user';
+            div.innerText = text;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function formatAgentResponse(steps, finalAnswer, totalTime) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message agent';
+
+            // Iterate through the trajectory steps
+            steps.forEach(step => {
+                // 1. Render Internal Monologue
+                if (step.think && step.think.trim() !== '') {
+                    const thinkDiv = document.createElement('div');
+                    thinkDiv.className = 'think-block';
+                    thinkDiv.innerHTML = `<strong>Thought Process:</strong><br/>${step.think.replace(/\n/g, '<br/>')}`;
+                    wrapper.appendChild(thinkDiv);
+                }
+
+                // 2. Render Tool Executions
+                if (step.tool_name) {
+                    const toolDiv = document.createElement('div');
+                    toolDiv.className = 'tool-block';
+                    
+                    const header = document.createElement('div');
+                    header.className = 'tool-header';
+                    header.innerHTML = `<span>⚙️ Action: ${step.tool_name}</span> <span>${step.elapsed_ms}ms</span>`;
+                    
+                    const input = document.createElement('div');
+                    input.innerText = `Input: ${JSON.stringify(step.tool_args)}`;
+                    
+                    const output = document.createElement('div');
+                    output.className = 'tool-result';
+                    // Check for errors vs normal output
+                    if (step.error) {
+                        output.style.color = '#ef4444'; // Red for errors
+                        output.innerText = `Error: ${step.error}`;
+                    } else {
+                        output.innerText = `Output: ${step.tool_result}`;
+                    }
+
+                    toolDiv.appendChild(header);
+                    toolDiv.appendChild(input);
+                    toolDiv.appendChild(output);
+                    wrapper.appendChild(toolDiv);
+                }
+            });
+
+            // 3. Render Final Answer
+            if (finalAnswer) {
+                const finalDiv = document.createElement('div');
+                finalDiv.className = 'final-answer';
+                finalDiv.innerHTML = `${finalAnswer.replace(/\n/g, '<br/>')}<br/><br/><small style="color:var(--text-muted)">Total generation time: ${totalTime}ms</small>`;
+                wrapper.appendChild(finalDiv);
+            }
+
+            chatContainer.appendChild(wrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const text = inputField.value.trim();
+            if (!text) return;
+
+            // UI updates
+            appendUserMessage(text);
+            inputField.value = '';
+            inputField.disabled = true;
+            sendBtn.disabled = true;
+            loadingIndicator.style.display = 'block';
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_BASE}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        query: text,
+                        max_iterations: 5,
+                        temperature: 0.2 // Kept low for deterministic agent execution
+                    })
+                });
+
+                const json = await response.json();
+
+                if (json.status === 'ok') {
+                    formatAgentResponse(json.data.steps, json.data.answer, json.data.total_elapsed_ms);
+                } else {
+                    alert(`Error: ${json.error}`);
+                }
+            } catch (err) {
+                alert(`Network error: Make sure the Flask API is running on port 5000.`);
+            } finally {
+                // Reset UI
+                inputField.disabled = false;
+                sendBtn.disabled = false;
+                loadingIndicator.style.display = 'none';
+                inputField.focus();
+            }
+        }
+    </script>
+</body>
+</html>

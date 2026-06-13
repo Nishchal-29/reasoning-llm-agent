@@ -8,7 +8,6 @@ import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import argparse
 
 logger = logging.getLogger(__name__)
 
@@ -480,26 +479,15 @@ def generate_all(output_dir: str = "./datasets/tool_trajectories", counts: Optio
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
-    parser = argparse.ArgumentParser(description="Generate live-execution ReAct trajectories")
-    parser.add_argument("--output-dir", default="./datasets/tool_trajectories", help="Output directory")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--calculator", type=int, default=3000)
-    parser.add_argument("--sympy", type=int, default=2000)
-    parser.add_argument("--python", type=int, default=2000)
-    parser.add_argument("--tool-selection", type=int, default=1000)
-    parser.add_argument("--verification", type=int, default=2000)
-    parser.add_argument("--reflection", type=int, default=300)
-    args = parser.parse_args()
-
     counts = {
-        "calculator": args.calculator,
-        "sympy": args.sympy,
-        "python": args.python,
-        "tool_selection": args.tool_selection,
-        "verification": args.verification,
-        "reflection": args.reflection,
+        "calculator": 3000,
+        "sympy": 2000,
+        "python": 2000,
+        "tool_selection": 1000,
+        "verification": 2000,
+        "reflection": 300,
     }
 
-    result = generate_all(output_dir=args.output_dir, counts=counts, seed=args.seed)
+    result = generate_all(output_dir="./datasets/tool_trajectories", counts=counts, seed=42)
     for name, cnt in result.items():
-        print(f"  {name}: {cnt}")
+        print(f"{name}: {cnt}")
